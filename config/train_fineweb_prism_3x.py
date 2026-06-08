@@ -12,8 +12,13 @@ Wallclock: ~17-20 hours on 4x GH200 (bf16, 100k iters at ~700 ms/iter).
 """
 
 out_dir = "out-fineweb-prism-3x"
-eval_interval = 2000
-eval_iters = 200
+# ~9.5 s/iter on 2xA100 => a 4h Slurm chunk only reaches ~1500 iters, so the old
+# eval_interval=2000 was never hit: no eval, no checkpoint, every requeue
+# restarted from scratch at iter 0. Eval (hence wandb scalars) every 500 iters
+# (~1.3h) is reachable within a chunk; ckpt_interval (250, in train.py) saves the
+# resume checkpoint independently every ~40min. eval_iters trimmed to keep eval cheap.
+eval_interval = 500
+eval_iters = 100
 log_interval = 10
 
 wandb_log = True

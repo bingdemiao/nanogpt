@@ -50,6 +50,13 @@ except ImportError:
 # I/O
 out_dir = "out"
 eval_interval = 2000
+# Checkpoint cadence, DECOUPLED from eval. eval_interval can be large/slow to
+# reach (e.g. with slow iters under a short wall-clock job limit), so saving the
+# resume checkpoint only at eval time can mean a requeue never has a ckpt.pt to
+# resume from and silently restarts from scratch. ckpt_interval saves ckpt.pt
+# every N iters regardless of eval, so progress survives requeues. Set <= the
+# iters reachable within one Slurm chunk.
+ckpt_interval = 250
 log_interval = 10
 eval_iters = 200
 eval_only = False
@@ -528,6 +535,23 @@ def _classify_grad_param(name: str) -> str:
         return "B_mlp"
     return "other"
 
+def _save_ckpt(it, best):
+    """Write the resume checkpoint atomically (tmp + rename so a kill mid-write
+    can't corrupt ckpt.pt). Master process only."""
+    checkpoint = {
+        "model": raw_model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "model_args": model_args,
+        "iter_num": it,
+        "best_val_loss": best,
+        "config": config,
+    }
+    ckpt_path = os.path.join(out_dir, "ckpt.pt")
+    tmp_path = ckpt_path + ".tmp"
+    print(f"saving checkpoint to {out_dir} (iter {it})")
+    torch.save(checkpoint, tmp_path)
+    os.replace(tmp_path, ckpt_path)
+
 while True:
     lr = get_lr(iter_num) if decay_lr else learning_rate
     for pg in optimizer.param_groups:
@@ -572,16 +596,15 @@ while True:
         if losses["val"] < best_val_loss or always_save_checkpoint:
             best_val_loss = min(best_val_loss, float(losses["val"]))
             if iter_num > 0:
-                checkpoint = {
-                    "model": raw_model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "model_args": model_args,
-                    "iter_num": iter_num,
-                    "best_val_loss": best_val_loss,
-                    "config": config,
-                }
-                print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
+                _save_ckpt(iter_num, best_val_loss)
+
+    # Periodic checkpoint, DECOUPLED from eval, so progress survives a requeue
+    # even when eval_interval is never reached within one Slurm chunk. Skip when
+    # this iter already saved in the eval block above.
+    if (master_process and iter_num > 0
+            and iter_num % ckpt_interval == 0
+            and iter_num % eval_interval != 0):
+        _save_ckpt(iter_num, best_val_loss)
 
     if iter_num == 0 and eval_only:
         break
