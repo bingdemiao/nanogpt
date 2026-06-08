@@ -591,7 +591,8 @@ while True:
             if mlp_type == "prism":
                 sample_X, _ = get_batch("val")
                 log_dict.update(compute_prism_monitors(raw_model, sample_X, device))
-            wandb.log(log_dict, step=iter_num)
+            # wandb.log(log_dict, step=iter_num)
+            wandb.log(log_dict) 
             t0 = t_eval
         if losses["val"] < best_val_loss or always_save_checkpoint:
             best_val_loss = min(best_val_loss, float(losses["val"]))
