@@ -1,17 +1,16 @@
 """GPT-2 small (124M) with prism-3× MLPs on FineWeb-Edu sample-10BT.
 
-Step-6 param-matched ablation at GPT-2 scale. At d=768, gs=64, r=8:
-  vanilla 4× MLP : 56.62 M params
-  prism   3× MLP : 45.30 M params   (-20.0% MLP, -9.1% total)
+Multi-epoch confirmation of the param-efficient match. At ~1 epoch (20k iters)
+the (gs=64, r=32) shape matched the vanilla-4× baseline (val 3.0938 vs 3.0916,
+within the ~0.5% noise floor) at -3% params. This run extends it to 100k iters
+(~5 epochs) with the matched recipe (LR=4e-3, r_lr_mult=8, r_init_scale=0.5) to
+test whether the match holds with repeated data. Compare against
+config/train_fineweb_vanilla.py run at the SAME 100k budget.
 
-If the TinyStories LR sweep (Step 5) shows prism-3× tying vanilla-4× at
-fixed recipe, this run confirms the result survives the jump to a
-real-language dataset and a 2.5x larger model.
-
-Wallclock: ~17-20 hours on 4x GH200 (bf16, 100k iters at ~700 ms/iter).
+Wallclock: ~10 days on 2x A100 at ~9.5 s/iter (or ~half on 4 GPUs).
 """
 
-out_dir = "out-fineweb-prism-3x"
+out_dir = "out-fineweb-prism-3x-gs64r32"
 # ~9.5 s/iter on 2xA100 => a 4h Slurm chunk only reaches ~1500 iters, so the old
 # eval_interval=2000 was never hit: no eval, no checkpoint, every requeue
 # restarted from scratch at iter 0. Eval (hence wandb scalars) every 500 iters
@@ -23,7 +22,7 @@ log_interval = 10
 
 wandb_log = True
 wandb_project = "nanogpt_fineweb"
-wandb_run_name = "nanogpt-prism-3x-fineweb"
+wandb_run_name = "prism-3x-gs64r32-100k"
 
 dataset = "fineweb"
 # 5 * 8 = 40 micro-batches. Per-rank micro-batch = 12, block_size = 1024.
@@ -41,17 +40,18 @@ bias = False
 mlp_type = "prism"
 mlp_expansion = 3               # hidden width = 3 * 768 = 2304
 group_size = 64                 # 2304 / 64 = 36 groups
-reconn_sz = 8                   # 768 / 8 = 96 blocks per group
+reconn_sz = 32                  # gate rank; the param-efficient match shape (~120M, -3%)
 prism_backend = "cublas"
 prism_activation = "silu_gate"
 prism_internal_bias = False
 prism_internal_dropout = 0.0
-r_init_scale = 1.0
+r_init_scale = 0.5              # matched recipe
+r_lr_mult = 8                   # matched recipe: R learns at 8x the base LR
 
-learning_rate = 6e-4
+learning_rate = 4e-3            # matched recipe
 max_iters = 100000
 lr_decay_iters = 100000
-min_lr = 6e-5
+min_lr = 4e-4                   # lr/10 cosine floor
 warmup_iters = 2000
 
 weight_decay = 0.1
