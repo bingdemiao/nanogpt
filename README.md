@@ -1,9 +1,8 @@
-```markdown
 # nanogpt-prism
 
 Karpathy's nanoGPT with the MLP up-projection swapped for `cute_prism.PrismLinear`.
 
-
+```text
 LayerNorm(d) → PrismLinear(d, 4d, silu_gate, cublas, bf16) → GroupNorm(n_groups) → Linear(4d, d) → Dropout
 
 ```
