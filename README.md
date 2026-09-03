@@ -4,8 +4,6 @@
 Karpathy's nanoGPT with the MLP up-projection swapped for `cute_prism.PrismLinear`.
 
 
-```
-
 LayerNorm(d) → PrismLinear(d, 4d, silu_gate, cublas, bf16) → GroupNorm(n_groups) → Linear(4d, d) → Dropout
 
 ```
@@ -317,7 +315,7 @@ might matter):
 | `learning_rate` | 6e-4 | {3e-4, 6e-4, 1e-3, 1.5e-3} | Smaller MLPs often prefer higher LR; prism may have its own optimum |
 | `r_lr_mult` | 1.0 | {0.5, 1.0, 2.0} | R is small and sensitive — separate LR scale may help |
 | `prism_internal_bias` | False | {False, True} | Adds learnable bias inside gate; trades tiny params for plasticity |
-| `prism_input_shuffle` | False | {False, True} | Per-group butterfly shuffle of A before A@R; increases cross-group view diversity. **Requires `reconn_sz=16**` (validated at construction). |
+| `prism_input_shuffle` | False | {False, True} | Per-group butterfly shuffle of A before A@R; increases cross-group view diversity. **Requires `reconn_sz=16`** (validated at construction). |
 | `r_init_scale` | 1.0 | {0.5, 1.0, 2.0} | Init magnitude of R; affects whether reconnection contributes early |
 | `reconn_sz` | 8 | {4, 8, 16} | Larger r → more R capacity, more params, slower kernel |
 
